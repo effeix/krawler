@@ -11,7 +11,7 @@ include_directories(${Boost_INCLUDE_DIR})
 set(CURL_LIBRARY "-lcurl")
 find_package(CURL REQUIRED)
 
-add_executable(krawler main.cpp)
+add_executable(krawler main.cpp curlhandler.cpp)
 include_directories(${CURL_INCLUDE_DIR})
 target_link_libraries(krawler "-lcurl -lpthread -lboost_regex" ${Boost_LIBRARIES} ${CURL_LIBRARIES})
 
