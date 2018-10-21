@@ -2,6 +2,7 @@
 #include "product.hpp"
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/optional/optional.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/regex.hpp>
 #include <iostream>
@@ -47,6 +48,17 @@ std::string unescape(std::string s) {
 
 std::string total_pages(std::string content) {
     boost::regex expr("\"lastPage\":(\\d+)");
+    boost::smatch matches;
+    
+    if(boost::regex_search(content, matches, expr)) {
+        return matches[1];
+    }
+    
+    return 0;
+}
+
+std::string total_products(std::string content) {
+    boost::regex expr("\"size\":(\\d+)");
     boost::smatch matches;
     
     if(boost::regex_search(content, matches, expr)) {
@@ -105,68 +117,91 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    std::string first_page = http_get(env->URL);
-    
-    std::string page_products;
-    page_products = http_get(env->URL);
-
-    std::string total = total_pages(page_products);
+    std::string page_first = http_get(env->URL);
+    std::string n_pages = total_pages(page_first);
+    std::string n_products = total_products(page_first);
     std::string pagination = "?page=";
-    std::vector<Product> product_list;
-    boost::property_tree::ptree products = get_products(page_products);
-    for(const boost::property_tree::ptree::value_type& child : 
-                  products.get_child("products")) {
-        
-        std::string listPrice = child.second.get<std::string>("listPrice");
-        
-        if(listPrice == "null") {
-            continue;
-        }
-        
-        std::string name = child.second.get<std::string>("title");
-        std::string pic_url = child.second.get<std::string>("imageUrl");
-        std::string priceInstallment = child.second.get<std::string>("installment.totalValue");
-        std::string priceInstallmentQty = child.second.get<std::string>("installment.quantity");
-        std::string price;
-        if(child.second.get<std::string>("bestPrice") == "null") {
-            price = priceInstallment;
+    std::string page_products;
+
+    for(unsigned int i = 1; i < std::stoi(n_pages) + 1; i++) {
+        if(i == 1) {
+            page_products = page_first;
         }
         else {
-            price = child.second.get<std::string>("bestPrice.value");
+            page_products = http_get(env->URL + pagination + std::to_string(i));
         }
 
-        std::string prod_url = child.second.get<std::string>("url");
+        std::cout << "Page " << i << " --------------------------" << std::endl;
 
-        std::string page_product = http_get(unescape(prod_url));
-        std::string description = get_product_description(page_product);
-        std::string category = get_product_category(env->URL);
-        
-        product_list.push_back(
-            Product(name,
-                    description,
-                    pic_url,
-                    price,
-                    priceInstallment,
-                    priceInstallmentQty,
-                    category,
-                    prod_url)
-        );
-    }
-    
-    for(Product prod: product_list) {
-        std::cout << "{" << std::endl;
-        std::cout << "    " << "\"nome\":" << " \"" + prod.name + "\"," << std::endl;
-        std::cout << "    " << "\"descricao\":" << " \"" + prod.description + "\"," << std::endl;
-        std::cout << "    " << "\"foto\":" << " \"" + prod.pic_url + "\"," << std::endl;
-        std::cout << "    " << "\"preco\":" << " " + prod.price + "," << std::endl;
-        std::cout << "    " << "\"preco_parcelado\":" << " " + prod.priceInstallment + "," << std::endl;
-        std::cout << "    " << "\"preco_num_parcelas\":" << " " + prod.priceInstallmentQty + "," << std::endl;
-        std::cout << "    " << "\"categoria\":" << " \"" + prod.category + "\"," << std::endl;
-        std::cout << "    " << "\"url\":" << " \"" + prod.prod_url + "\"," << std::endl;
-        std::cout << "}";
-        std::cout << std::endl << std::endl;
-    }
+        std::vector<Product> product_list;
+        boost::property_tree::ptree products = get_products(page_products);
 
+        boost::optional< boost::property_tree::ptree& > child = products.get_child_optional("products");
+
+        if(!child) {
+            std::cout << "Skipping..." << std::endl << std::endl;
+        }
+        else {
+            int count = 0;
+            for(const boost::property_tree::ptree::value_type& child : 
+                    products.get_child("products")) {
+                count++;
+                std::cout << "\rPage " << i << " - Product " << count << "/" << n_products << std::flush;
+                std::string listPrice = child.second.get<std::string>("listPrice");
+
+                if(listPrice == "null") {
+                    continue;
+                }
+
+                std::string name = child.second.get<std::string>("title");
+                std::string pic_url = child.second.get<std::string>("imageUrl");
+
+                std::string priceInstallment;
+                std::string priceInstallmentQty;
+                if(child.second.get<std::string>("installment") == "null") {
+                    priceInstallment = "N/A";
+                    priceInstallmentQty = "N/A";
+                }
+                else {
+                    priceInstallment = child.second.get<std::string>("installment.totalValue");
+                    priceInstallmentQty = child.second.get<std::string>("installment.quantity");
+                }
+
+                std::string price;
+                if(child.second.get<std::string>("bestPrice") == "null" and priceInstallment == "N/A") {
+                    price = "N/A";
+                }
+                else if(priceInstallment != "N/A") {
+                    price = priceInstallment;
+                }
+                else {
+                    price = child.second.get<std::string>("bestPrice.value");
+                }
+
+                std::string prod_url = child.second.get<std::string>("url");
+
+                std::string page_product = http_get(unescape(prod_url));
+                std::string description = get_product_description(page_product);
+                std::string category = get_product_category(env->URL);
+
+                product_list.push_back(
+                    Product(name,
+                            description,
+                            pic_url,
+                            price,
+                            priceInstallment,
+                            priceInstallmentQty,
+                            category,
+                            prod_url)
+                );
+            }
+            std::cout << std::endl;
+        }
+
+        for(Product prod: product_list) {
+            prod.display();
+        }
+    }
 
     return EXIT_SUCCESS;
 }
