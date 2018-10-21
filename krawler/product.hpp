@@ -9,8 +9,8 @@ public:
             std::string description,
             std::string pic_url,
             std::string price,
-            std::string priceInstallment,
-            std::string priceInstallmentQty,
+            std::string price_in_installment,
+            std::string installment_qty,
             std::string category,
             std::string prod_url
            );
@@ -21,8 +21,8 @@ public:
         description,
         pic_url,
         price,
-        priceInstallment,
-        priceInstallmentQty,
+        price_in_installment,
+        installment_qty,
         category,
         prod_url;
 };
