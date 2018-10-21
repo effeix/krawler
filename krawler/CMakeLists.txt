@@ -11,8 +11,8 @@ include_directories(${Boost_INCLUDE_DIR})
 set(CURL_LIBRARY "-lcurl")
 find_package(CURL REQUIRED)
 
-add_executable(krawler main.cpp curlhandler.cpp product.cpp krawlers.cpp krawlerp.cpp)
+add_executable(krawler main.cpp curlhandler.cpp product.cpp krawlers.cpp krawlerp.cpp semaphore.cpp)
 include_directories(${CURL_INCLUDE_DIR})
-target_link_libraries(krawler2 "-lcurl -lpthread" ${Boost_LIBRARIES} ${CURL_LIBRARIES})
+target_link_libraries(krawler "-lcurl -lpthread" ${Boost_LIBRARIES} ${CURL_LIBRARIES})
 
 install(TARGETS krawler RUNTIME DESTINATION bin)
