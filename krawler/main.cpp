@@ -11,8 +11,8 @@ void get_env(envvars* env) {
     const char * ENV_url = std::getenv("URL");
     const char * ENV_mode = std::getenv("MODE");
 
-    env->N_CONS_THREADS = ENV_cons == NULL ? 2 : std::stoi(ENV_cons);
-    env->N_PROD_THREADS = ENV_prod == NULL ? 2 : std::stoi(ENV_prod);
+    env->N_CONS = ENV_cons == NULL ? 2 : std::stoi(ENV_cons);
+    env->N_PROD = ENV_prod == NULL ? 2 : std::stoi(ENV_prod);
     env->MODE = ENV_mode == NULL ? "seq" : ENV_mode;
 
     if(!(env->MODE == "seq" or env->MODE == "par")) {
@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
         ks.crawl(env->URL);
     }
     else {
-        KrawlerP kp(env->N_PROD_THREADS, env->N_CONS_THREADS);
+        KrawlerP kp(env->N_PROD, env->N_CONS);
         kp.crawl(env->URL);
     }
 
