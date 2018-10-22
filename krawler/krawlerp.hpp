@@ -2,6 +2,7 @@
 #define __KRAWLERP_H__
 
 #include "semaphore.hpp"
+#include <fstream>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -19,6 +20,7 @@ public:
     std::vector<std::string> urls;
     std::vector<std::string> payloads;
     std::mutex buffer_lock;
+    std::ofstream time_per_product;
 };
 
 #endif/*__KRAWLERP_H__*/

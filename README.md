@@ -18,6 +18,8 @@ Ao final da execução, o programa deve imprimir no terminal os produtos buscado
 }
 ```
 
+Se, por algum motivo, seja por uma mudança no HTML ou uma falha no cURL, o programa não conseguir fazer download de uma página, uma mensagem "Skipping..." será mostrada e aquela página será pulada.
+
 ## Utilização
 Primeiramente, deve-se compilar o projeto. Na raíz do repositório, crie uma pasta de nome `build/`, ficando com a seguinte árvore:
 ```sh

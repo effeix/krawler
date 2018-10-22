@@ -7,12 +7,16 @@
 #include <boost/optional/optional.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/regex.hpp>
+#include <chrono>
 #include <iostream>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
+
+typedef std::chrono::high_resolution_clock Time;
+using namespace std::chrono;
 
 KrawlerP::KrawlerP(int n_prod, int n_cons) : n_prod(n_prod), n_cons(n_cons) {}
 
@@ -134,8 +138,11 @@ void KrawlerP::producer(
         int last_url) {
     
     std::string payload;
-    for(unsigned int i = first_url; i <= last_url; i++){
+    for(unsigned int i = first_url; i <= last_url; i++) {
+        Time::time_point download_time_start = Time::now();
         payload = http_get(urls[i]);
+        Time::time_point download_time_end = Time::now();
+        time_per_product << duration_cast<duration<double>>(download_time_start - download_time_end).count() << "\n";
         empty_slots.acquire();
         buffer_put(payload);
         filled_slots.release();   
@@ -188,6 +195,8 @@ std::string KrawlerP::buffer_get() {
 }
 
 void KrawlerP::crawl(std::string url) {
+    time_per_product.open("time_per_product.txt");
+
     std::string page_first = http_get(url);
     int n_pages = std::stoi(total_pages_par(page_first));
     std::string n_products = total_products_par(page_first);
@@ -242,4 +251,6 @@ void KrawlerP::crawl(std::string url) {
 
     for(std::thread &ct: c_thr)
         ct.join();
+
+    time_per_product.close();
 }
