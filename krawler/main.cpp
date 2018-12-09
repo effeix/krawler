@@ -38,10 +38,17 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+    double process_idle_time = 0;
+    std::vector<std::string> all_products;
+
 
     if(env->MODE == "seq") {
         KrawlerS ks;
-        ks.crawl(env->URL);
+        std::vector<std::string> pages = ks.get_pages(env->URL);
+        all_products = ks.crawl(pages, process_idle_time);
+        for(auto p : all_products) {
+            std::cout << p;
+        }
     }
     else {
         KrawlerP kp(env->N_PROD, env->N_CONS);
