@@ -1,8 +1,5 @@
-#ifndef __KRAWLERS_H__
-#define __KRAWLERS_H__
-
-#include "product.hpp"
-#include "semaphore.hpp"
+#ifndef __KRAWLER_H__
+#define __KRAWLER_H__
 
 #include <chrono>
 #include <string>
@@ -10,12 +7,17 @@
 #include <mutex>
 
 #include <boost/regex.hpp>
+#include "product.hpp"
+#include "semaphore.hpp"
+
 
 typedef std::chrono::high_resolution_clock Time;
 
-class KrawlerS {
+class Krawler {
 public:
-    KrawlerS();
+    Krawler();
+
+    /* Method executed by the producer thread */
     void producer(
         Semaphore& filled_slots,
         Semaphore& empty_slots,
@@ -23,33 +25,61 @@ public:
         int first_url,
         int last_url
     );
-    void consumer(Semaphore& empty_slots, Semaphore& filled_slots);
+
+    /* Method executed by the consumer thread */
+    void consumer(
+        Semaphore& empty_slots,
+        Semaphore& filled_slots
+    );
+
+    /* Thread-safe buffer interaction */
     void buffer_put(std::string url);
     std::string buffer_get();
-    std::vector<std::string> crawl_par(std::vector<std::string> urls, int n_cons, int n_prod);
+
+    /* Crawling method used in parallel mode */
+    void crawl_par(
+        std::vector<std::string> urls,
+        int n_prod,
+        int n_cons
+    );
+
+    /* Crawling method used in sequential mode */
     std::vector<std::string> crawl(
-        std::vector<std::string> urls, double& total_idle_time);
+        std::vector<std::string> urls,
+        double& total_idle_time
+    );
+
+    /* Retrieve pages to be crawled */
     std::vector<std::string> get_pages(std::string url);
-    std::vector<std::string> product_info(std::string product_url);
+
+    /* Retrieve product category based on URL */
     std::string product_category(std::string product_url);
-    std::string search(std::string& page_content, std::string& expr);
+
+    /* Search for single regex match */
+    std::string search(
+        std::string& page_content,
+        std::string& expr
+    );
+
+    /* Search for multiple regex matches */
     std::vector<std::string> search_many(
         std::string& page_content,
         std::string& expr
     );
+
+    /* Access product URL and create new Product */
     Product new_product(
         std::string& link,
         double& product_download
     );
 
+    /* Used by producer-consumer implementation */
     std::vector<std::string> buffer;
     std::mutex buffer_lock;
-    std::mutex stop_lock;
-    std::mutex consumed_lock;
     int stop = 0;
     int n_producers;
-    int consumed = 0;
 
+    /* Regexes for product info */
     std::string re_last_page;
     std::string re_product_name;
     std::string re_product_description;
@@ -61,4 +91,4 @@ public:
     std::string re_product_link;
 };
 
-#endif/*__KRAWLERS_H__*/
+#endif/*__KRAWLER_H__*/

@@ -1,8 +1,9 @@
 #include "main.hpp"
-#include "krawlerp.hpp"
-#include "krawlers.hpp"
+
 #include <iostream>
 #include <stdexcept>
+
+#include "krawler.hpp"
 
 
 void get_env(envvars* env) {
@@ -41,15 +42,15 @@ int main(int argc, char **argv) {
     double process_idle_time = 0;
     std::vector<std::string> all_products;
 
-    KrawlerS K;
+    Krawler K;
     std::vector<std::string> pages = K.get_pages(env->URL);
 
-    if(env->MODE == "seq")
+    if(env->MODE == "seq") {
         all_products = K.crawl(pages, process_idle_time);
+        for(auto p : all_products) std::cout << p;
+    }
     else
-        all_products = K.crawl_par(pages, env->N_PROD, env->N_CONS);
-
-    for(auto p : all_products) std::cout << p;
+        K.crawl_par(pages, env->N_PROD, env->N_CONS);
 
     return EXIT_SUCCESS;
 }

@@ -1,8 +1,4 @@
-#include "krawlers.hpp"
-
-#include "curlhandler.h"
-#include "product.hpp"
-#include "semaphore.hpp"
+#include "krawler.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -14,10 +10,14 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/regex.hpp>
+#include "curlhandler.h"
+#include "product.hpp"
+#include "semaphore.hpp"
 
 using namespace std::chrono;
 
-KrawlerS::KrawlerS() {
+
+Krawler::Krawler() {
     re_last_page = "(?<=\"lastPage\":)(\\d+)";
     re_product_name = "(?<=\"fullTitle\":\\s)(.*?)(?=\",)";
     re_product_description = "(?<=<p class=\"description__text\"></p>)(.*?)(?=<p class=\"description__text\"></p>)";
@@ -30,7 +30,7 @@ KrawlerS::KrawlerS() {
 }
 
 /* Search single occurrence of a regex */
-std::string KrawlerS::search(std::string& page_content, std::string& expr) {
+std::string Krawler::search(std::string& page_content, std::string& expr) {
     boost::regex expression(expr);
     boost::smatch matches;
 
@@ -42,7 +42,7 @@ std::string KrawlerS::search(std::string& page_content, std::string& expr) {
 }
 
 /* Search many occurrences of a regex */
-std::vector<std::string> KrawlerS::search_many(std::string& page_content,
+std::vector<std::string> Krawler::search_many(std::string& page_content,
         std::string& expr) {
     boost::regex expression(expr);
 
@@ -63,7 +63,7 @@ std::vector<std::string> KrawlerS::search_many(std::string& page_content,
 }
 
 /* Discover product category from main URL */
-std::string KrawlerS::product_category(std::string product_url) {
+std::string Krawler::product_category(std::string product_url) {
     std::vector<std::string> strs;
     boost::split(strs, product_url, boost::is_any_of("/"));
 
@@ -71,7 +71,7 @@ std::string KrawlerS::product_category(std::string product_url) {
 }
 
 /* Get all pages that contain products to be crawled */
-std::vector<std::string> KrawlerS::get_pages(std::string url) {
+std::vector<std::string> Krawler::get_pages(std::string url) {
     std::string first_page = http_get(url);
     std::string n_pages = search(first_page, re_last_page);
     std::string pagination = "?page=";
@@ -88,7 +88,7 @@ std::vector<std::string> KrawlerS::get_pages(std::string url) {
 }
 
 /* Access a product URL and get product information */
-Product KrawlerS::new_product(std::string& link, double& download_time) {
+Product Krawler::new_product(std::string& link, double& download_time) {
 
     Time::time_point t0, t1, t2, t3;
     double elapsed_analysis;
@@ -127,7 +127,7 @@ Product KrawlerS::new_product(std::string& link, double& download_time) {
     );
 }
 
-std::vector<std::string> KrawlerS::crawl(
+std::vector<std::string> Krawler::crawl(
     std::vector<std::string> urls,
     double& process_idle_time) {
 
@@ -161,7 +161,7 @@ std::vector<std::string> KrawlerS::crawl(
     return all_products;
 }
 
-std::vector<std::string> KrawlerS::crawl_par(std::vector<std::string> urls,
+void Krawler::crawl_par(std::vector<std::string> urls,
         int n_prod, int n_cons) {
     
     buffer.reserve(1000);
@@ -183,7 +183,7 @@ std::vector<std::string> KrawlerS::crawl_par(std::vector<std::string> urls,
 
         p_thr.push_back(
             std::thread(
-                &KrawlerS::producer,
+                &Krawler::producer,
                 this,
                 std::ref(filled_slots),
                 std::ref(empty_slots),
@@ -199,7 +199,7 @@ std::vector<std::string> KrawlerS::crawl_par(std::vector<std::string> urls,
     for(unsigned int p = 1; p <= n_prod; p++) {
         p_thr.push_back(
             std::thread(
-                &KrawlerS::consumer,
+                &Krawler::consumer,
                 this,
                 std::ref(filled_slots),
                 std::ref(empty_slots)
@@ -212,32 +212,25 @@ std::vector<std::string> KrawlerS::crawl_par(std::vector<std::string> urls,
 
     for(std::thread &ct: c_thr)
         ct.join();
-
-    std::cout << "CONSUMED: " << consumed << std::endl;
-
-    std::cout << "BUFFER (" << buffer.size() << ")" << '\n' << std::flush;
-    for(std::string& url : buffer) {
-        std::cout << url << std::endl << std::flush;
-    }
 }
 
-std::string KrawlerS::buffer_get() {
+std::string Krawler::buffer_get() {
     {
-        std::unique_lock<std::mutex> lockk(buffer_lock);
+        std::unique_lock<std::mutex> lock(buffer_lock);
             std::string url = buffer.back();
             buffer.pop_back();
             return url;
     }
 }
 
-void KrawlerS::buffer_put(std::string url) {
+void Krawler::buffer_put(std::string url) {
     {
         std::unique_lock<std::mutex> lock(buffer_lock);
             buffer.push_back(url);
     }
 }
 
-void KrawlerS::producer(
+void Krawler::producer(
         Semaphore& filled_slots,
         Semaphore& empty_slots,
         std::vector<std::string> urls,
@@ -270,7 +263,7 @@ void KrawlerS::producer(
     stop++;
 }
 
-void KrawlerS::consumer(Semaphore& empty_slots, Semaphore& filled_slots) {
+void Krawler::consumer(Semaphore& empty_slots, Semaphore& filled_slots) {
     
     double download_time;
 
