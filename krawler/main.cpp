@@ -1,13 +1,14 @@
 #include "main.hpp"
-#include "krawlerp.hpp"
-#include "krawlers.hpp"
+
 #include <iostream>
 #include <stdexcept>
 
+#include "krawler.hpp"
+
 
 void get_env(envvars* env) {
-    const char * ENV_cons = std::getenv("N_CONS_THREADS");
-    const char * ENV_prod = std::getenv("N_PROD_THREADS");
+    const char * ENV_cons = std::getenv("N_CONS");
+    const char * ENV_prod = std::getenv("N_PROD");
     const char * ENV_url = std::getenv("URL");
     const char * ENV_mode = std::getenv("MODE");
 
@@ -38,15 +39,18 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+    double process_idle_time = 0;
+    std::vector<std::string> all_products;
+
+    Krawler K;
+    std::vector<std::string> pages = K.get_pages(env->URL);
 
     if(env->MODE == "seq") {
-        KrawlerS ks;
-        ks.crawl(env->URL);
+        all_products = K.crawl(pages, process_idle_time);
+        for(auto p : all_products) std::cout << p;
     }
-    else {
-        KrawlerP kp(env->N_PROD, env->N_CONS);
-        kp.crawl(env->URL);
-    }
+    else
+        K.crawl_par(pages, env->N_PROD, env->N_CONS);
 
     return EXIT_SUCCESS;
 }

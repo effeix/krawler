@@ -1,6 +1,7 @@
 #ifndef __PRODUCT_H__
 #define __PRODUCT_H__
 
+#include <sstream>
 #include <string>
 
 class Product {
@@ -15,7 +16,7 @@ public:
             std::string prod_url
            );
     
-    void display();
+    std::string display();
     
     std::string name,
         description,
