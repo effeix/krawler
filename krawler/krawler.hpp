@@ -79,6 +79,13 @@ public:
     int stop = 0;
     int n_producers;
 
+    /* Timing */
+    double total_idle_time;
+    double total_execution_time;
+    double prod_count;
+    std::mutex lock_idle_time;
+    std::mutex lock_prod_count;
+
     /* Regexes for product info */
     std::string re_last_page;
     std::string re_product_name;

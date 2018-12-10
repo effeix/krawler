@@ -115,6 +115,11 @@ Product Krawler::new_product(std::string& link, double& download_time) {
     elapsed_analysis = duration_cast<duration<double>>(t3 - t0).count();
     std::cerr << elapsed_analysis << std::endl;
 
+    {
+        std::unique_lock<std::mutex> lock(lock_prod_count);
+        prod_count++;
+    }
+
     return Product(
         name,
         description,
@@ -135,28 +140,36 @@ std::vector<std::string> Krawler::crawl(
 
     std::string category = product_category(urls[0]);
 
-    Time::time_point t0, t1;
-    double download_time;
+    Time::time_point t0, t1, t2, t3;
+    double download_time, total_time;
 
-    for(unsigned int i = 0; i < urls.size(); i++) {
-        t0 = Time::now();
-            std::string products_page = http_get(urls[i]);
-        t1 = Time::now();
-        process_idle_time += duration_cast<duration<double>>(t1 - t0).count();
+    t2 = Time::now();
 
-        std::vector<std::string> product_links = search_many(
-            products_page,
-            re_product_link
-        );
+        for(unsigned int i = 0; i < urls.size(); i++) {
+            t0 = Time::now();
+                std::string products_page = http_get(urls[i]);
+            t1 = Time::now();
+            process_idle_time += duration_cast<duration<double>>(t1 - t0).count();
 
-        for(std::string& link: product_links) {
-            Product p = new_product(link, download_time);
-            p.category = category;
-            all_products.push_back(p.display());
+            std::vector<std::string> product_links = search_many(
+                products_page,
+                re_product_link
+            );
 
-            process_idle_time += download_time;
+            for(std::string& link: product_links) {
+                Product p = new_product(link, download_time);
+                p.category = category;
+                all_products.push_back(p.display());
+
+                process_idle_time += download_time;
+            }
         }
-    }
+
+    t3 = Time::now();
+    total_time = duration_cast<duration<double>>(t3 - t2).count();
+
+    std::cerr << "TOTAL_IDLE_TIME " << process_idle_time << std::endl;
+    std::cerr << "AVG_TIME_PER_PRODUCT " << total_time / all_products.size() << std::endl;
 
     return all_products;
 }
@@ -164,13 +177,13 @@ std::vector<std::string> Krawler::crawl(
 void Krawler::crawl_par(std::vector<std::string> urls,
         int n_prod, int n_cons) {
     
-    buffer.reserve(1000);
+    buffer.reserve(5000);
 
     std::vector<std::thread> p_thr;
     std::vector<std::thread> c_thr;
 
     Semaphore filled_slots(0);
-    Semaphore empty_slots(1000);
+    Semaphore empty_slots(5000);
 
     int first_url = 0;
     int last_url;
@@ -178,6 +191,9 @@ void Krawler::crawl_par(std::vector<std::string> urls,
     stop = 0;
     n_producers = n_prod;
 
+    Time::time_point t0, t1;
+
+    t0 = Time::now();
     for(unsigned int p = 1; p <= n_prod; p++) {
         last_url = p == n_prod ? urls.size() : p * chunk_size;
 
@@ -212,6 +228,12 @@ void Krawler::crawl_par(std::vector<std::string> urls,
 
     for(std::thread &ct: c_thr)
         ct.join();
+
+    t1 = Time::now();
+    total_execution_time = duration_cast<duration<double>>(t1 - t0).count();
+
+    std::cerr << "TOTAL_IDLE_TIME " << total_idle_time << std::endl;
+    std::cerr << "AVG_TIME_PER_PRODUCT " << total_execution_time / prod_count << std::endl;
 }
 
 std::string Krawler::buffer_get() {
@@ -245,8 +267,20 @@ void Krawler::producer(
     std::string products_page;
     std::thread::id this_id = std::this_thread::get_id();
 
+    Time::time_point t0, t1;
+
     for(int u = first_url; u < last_url; u++) {
-        products_page = http_get(urls[u]);
+        
+        t0 = Time::now();
+       
+            products_page = http_get(urls[u]);
+
+        t1 = Time::now();
+
+        {
+            std::unique_lock<std::mutex> lock(lock_idle_time);
+            total_idle_time += duration_cast<duration<double>>(t1 - t0).count();
+        }
 
         std::vector<std::string> product_urls = search_many(
             products_page,
@@ -279,6 +313,11 @@ void Krawler::consumer(Semaphore& empty_slots, Semaphore& filled_slots) {
             empty_slots.release();
 
             Product p = new_product(url, download_time);
+
+            {
+                std::unique_lock<std::mutex> lock(lock_idle_time);
+                total_idle_time += download_time;
+            }
 
             std::cout << p.display();
         }
