@@ -2,10 +2,12 @@
 #define __KRAWLERS_H__
 
 #include "product.hpp"
+#include "semaphore.hpp"
 
 #include <chrono>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include <boost/regex.hpp>
 
@@ -14,6 +16,17 @@ typedef std::chrono::high_resolution_clock Time;
 class KrawlerS {
 public:
     KrawlerS();
+    void producer(
+        Semaphore& filled_slots,
+        Semaphore& empty_slots,
+        std::vector<std::string> urls,
+        int first_url,
+        int last_url
+    );
+    void consumer(Semaphore& empty_slots, Semaphore& filled_slots);
+    void buffer_put(std::string url);
+    std::string buffer_get();
+    std::vector<std::string> crawl_par(std::vector<std::string> urls, int n_cons, int n_prod);
     std::vector<std::string> crawl(
         std::vector<std::string> urls, double& total_idle_time);
     std::vector<std::string> get_pages(std::string url);
@@ -28,6 +41,14 @@ public:
         std::string& link,
         double& product_download
     );
+
+    std::vector<std::string> buffer;
+    std::mutex buffer_lock;
+    std::mutex stop_lock;
+    std::mutex consumed_lock;
+    int stop = 0;
+    int n_producers;
+    int consumed = 0;
 
     std::string re_last_page;
     std::string re_product_name;

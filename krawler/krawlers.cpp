@@ -2,11 +2,13 @@
 
 #include "curlhandler.h"
 #include "product.hpp"
+#include "semaphore.hpp"
 
 #include <chrono>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <boost/algorithm/string/classification.hpp>
@@ -27,6 +29,7 @@ KrawlerS::KrawlerS() {
     re_product_link = "(?<=linkToProduct\"\\shref=\")(.*?)(?=\")";
 }
 
+/* Search single occurrence of a regex */
 std::string KrawlerS::search(std::string& page_content, std::string& expr) {
     boost::regex expression(expr);
     boost::smatch matches;
@@ -38,6 +41,7 @@ std::string KrawlerS::search(std::string& page_content, std::string& expr) {
     return "N/A";
 }
 
+/* Search many occurrences of a regex */
 std::vector<std::string> KrawlerS::search_many(std::string& page_content,
         std::string& expr) {
     boost::regex expression(expr);
@@ -58,6 +62,7 @@ std::vector<std::string> KrawlerS::search_many(std::string& page_content,
     return all_matches;
 }
 
+/* Discover product category from main URL */
 std::string KrawlerS::product_category(std::string product_url) {
     std::vector<std::string> strs;
     boost::split(strs, product_url, boost::is_any_of("/"));
@@ -65,6 +70,7 @@ std::string KrawlerS::product_category(std::string product_url) {
     return strs[3];
 }
 
+/* Get all pages that contain products to be crawled */
 std::vector<std::string> KrawlerS::get_pages(std::string url) {
     std::string first_page = http_get(url);
     std::string n_pages = search(first_page, re_last_page);
@@ -81,6 +87,7 @@ std::vector<std::string> KrawlerS::get_pages(std::string url) {
     return pages;
 }
 
+/* Access a product URL and get product information */
 Product KrawlerS::new_product(std::string& link, double& download_time) {
 
     Time::time_point t0, t1, t2, t3;
@@ -152,4 +159,136 @@ std::vector<std::string> KrawlerS::crawl(
     }
 
     return all_products;
+}
+
+std::vector<std::string> KrawlerS::crawl_par(std::vector<std::string> urls,
+        int n_prod, int n_cons) {
+    
+    buffer.reserve(1000);
+
+    std::vector<std::thread> p_thr;
+    std::vector<std::thread> c_thr;
+
+    Semaphore filled_slots(0);
+    Semaphore empty_slots(1000);
+
+    int first_url = 0;
+    int last_url;
+    int chunk_size = urls.size() / n_prod;
+    stop = 0;
+    n_producers = n_prod;
+
+    for(unsigned int p = 1; p <= n_prod; p++) {
+        last_url = p == n_prod ? urls.size() : p * chunk_size;
+
+        p_thr.push_back(
+            std::thread(
+                &KrawlerS::producer,
+                this,
+                std::ref(filled_slots),
+                std::ref(empty_slots),
+                std::ref(urls),
+                first_url,
+                last_url
+            )
+        );
+
+        first_url = last_url;
+    }
+
+    for(unsigned int p = 1; p <= n_prod; p++) {
+        p_thr.push_back(
+            std::thread(
+                &KrawlerS::consumer,
+                this,
+                std::ref(filled_slots),
+                std::ref(empty_slots)
+            )
+        );
+    }
+
+    for(std::thread &pt: p_thr)
+        pt.join();
+
+    for(std::thread &ct: c_thr)
+        ct.join();
+
+    std::cout << "CONSUMED: " << consumed << std::endl;
+
+    std::cout << "BUFFER (" << buffer.size() << ")" << '\n' << std::flush;
+    for(std::string& url : buffer) {
+        std::cout << url << std::endl << std::flush;
+    }
+}
+
+std::string KrawlerS::buffer_get() {
+    {
+        std::unique_lock<std::mutex> lockk(buffer_lock);
+            std::string url = buffer.back();
+            buffer.pop_back();
+            return url;
+    }
+}
+
+void KrawlerS::buffer_put(std::string url) {
+    {
+        std::unique_lock<std::mutex> lock(buffer_lock);
+            buffer.push_back(url);
+    }
+}
+
+void KrawlerS::producer(
+        Semaphore& filled_slots,
+        Semaphore& empty_slots,
+        std::vector<std::string> urls,
+        int first_url,
+        int last_url) {
+
+    /* Producer thread will receive a list of URLs containing products.
+       For each URL, the page is accessed, all product links are collected
+       and loaded into the buffer.
+     */
+
+    std::string products_page;
+    std::thread::id this_id = std::this_thread::get_id();
+
+    for(int u = first_url; u < last_url; u++) {
+        products_page = http_get(urls[u]);
+
+        std::vector<std::string> product_urls = search_many(
+            products_page,
+            re_product_link
+        );
+
+        for(std::string& url : product_urls) {
+            empty_slots.acquire();
+            buffer_put(url);
+            filled_slots.release();
+        }
+    }
+
+    stop++;
+}
+
+void KrawlerS::consumer(Semaphore& empty_slots, Semaphore& filled_slots) {
+    
+    double download_time;
+
+    while(true) {
+        if(stop == n_producers && buffer.size() == 0) {
+            filled_slots.release();
+            break;
+        }
+
+        if(!buffer.empty()) {
+            filled_slots.acquire();
+            std::string url = buffer_get(); 
+            empty_slots.release();
+
+            Product p = new_product(url, download_time);
+
+            std::cout << p.display();
+        }
+
+    }
 }
