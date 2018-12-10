@@ -100,6 +100,7 @@ Já a versão paralela é um pouco mais complexa. Para este projeto foi escolhid
 A sincronização entre threads é realizada com a utilização de semáforos, que bloqueiam ou liberam o acesso à fila de tarefas (URLs) a serem cumpridas.
 
 ## Testes
+URL: https://www.magazineluiza.com.br/agendas-e-diarios/papelaria/s/pa/pagd/ (568 produtos)
 ### Hardware
 - Intel i7-4510U
 - 8GB RAM
